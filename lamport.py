@@ -5,6 +5,7 @@ import json
 redis_host = '127.0.0.1'
 redis_port = 6379
 
+# Available nodes in for naming in the cluster
 available_nodes = set(['node1', 'node2', 'node3'])
 
 # The logical timestamp of this node
@@ -35,6 +36,20 @@ def increment_timestamp(event_timestamp=0):
 
 
 def run_middleware(message):
+    """ Simulates a middleware in the application layer, gets a message
+    and operate over the headers, returning only the data to the original
+    function
+
+    Args:
+        message (dict): The message that comes directly from the redis lib
+
+    Raises:
+        ValueError: If a value error is raised, the messaged is supposed to be
+        ignored
+
+    Returns:
+        dict: The data without the middleware headers
+    """
     global timestamp
     global node_name
     data = message["data"]
@@ -55,6 +70,12 @@ def run_middleware(message):
 
 
 def receive_direct_message(message):
+    """ Handles direct messsages for this node, i.e messages in the {node_name}
+    channel in redis
+
+    Args:
+        message (dict): Message from another node, this comes from the redis lib
+    """
     try:
         run_middleware(message)
     except ValueError:
@@ -62,12 +83,24 @@ def receive_direct_message(message):
 
 
 def receive_broadcast_message(message):
+    """ Handles direct messsages for this node, i.e messages in the "all"
+    channel in redis
+
+    Args:
+        message (dict): Message from another node, this comes from the redis lib
+    """
     try:
         run_middleware(message)
     except ValueError:
         return
 
 def send_message(target, data):
+    """ Wrapper that publishes a message on a target(channel in redis).
+    Increments logical timestamp by one
+    Args:
+        target (string): Target (channel in redis) that this message is directed to
+        data (dict): Data that is going to be sent with the messsage (normally has a 'type' field to categorize it)
+    """
     global r
     r.publish(target, json.dumps({
         "timestamp": timestamp,

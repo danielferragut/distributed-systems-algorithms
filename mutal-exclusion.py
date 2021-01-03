@@ -55,6 +55,20 @@ def increment_timestamp(event_timestamp=0):
 
 
 def run_middleware(message):
+    """ Simulates a middleware in the application layer, gets a message
+    and operate over the headers, returning only the data to the original
+    function
+
+    Args:
+        message (dict): The message that comes directly from the redis lib
+
+    Raises:
+        ValueError: If a value error is raised, the messaged is supposed to be
+        ignored
+
+    Returns:
+        dict: The data without the middleware headers
+    """
     global timestamp
     global node_name
     data = message["data"]
@@ -75,6 +89,12 @@ def run_middleware(message):
 
 
 def send_ok_message(target, resource):
+    """ Send an approval message to a target, allowing the lock on a resource
+
+    Args:
+        target (string): The node target of this message (the channel on redis pubsub)
+        resource (string): Name of the resource that is being allowed
+    """
     send_message(target, {
         "type": "resource lock response",
         "response": "ok",
@@ -84,6 +104,11 @@ def send_ok_message(target, resource):
 
 
 def handle_lock_request(data):
+    """ Function that takes care of any request for locks on shared resources
+
+    Args:
+        data (dict): The data contained in the message of the request
+    """
     global timestamp
     resource = data['resource']
     sender = data['sender']
@@ -145,6 +170,11 @@ def handle_lock_request(data):
 
 
 def handle_lock_response(data):
+    """Handles responses related to previous lock requests
+
+    Args:
+        data (dict): The data from the response message
+    """
     resource = data['resource']
     sender = data['sender']
     print("Got ok for resource {} from {}".format(
@@ -152,11 +182,18 @@ def handle_lock_response(data):
     resource_ok_list[resource].add(sender)
 
     if resource_ok_list[resource] == other_nodes:
-        print("I got all the necessary approvals for resource {}! I can now write on it!".format(resource))
+        print("I got all the necessary approvals for resource {}! I can now write on it!".format(
+            resource))
         resource_locks[resource] = True
 
 
 def receive_direct_message(message):
+    """ Handles direct messsages for this node, i.e messages in the {node_name}
+    channel in redis
+
+    Args:
+        message (dict): Message from another node, this comes from the redis lib
+    """
     data = {}
     try:
         data = run_middleware(message)
@@ -168,6 +205,12 @@ def receive_direct_message(message):
 
 
 def receive_broadcast_message(message):
+    """ Handles direct messsages for this node, i.e messages in the "all"
+    channel in redis
+
+    Args:
+        message (dict): Message from another node, this comes from the redis lib
+    """
     data = {}
     try:
         data = run_middleware(message)
@@ -179,6 +222,12 @@ def receive_broadcast_message(message):
 
 
 def send_message(target, data):
+    """ Wrapper that publishes a message on a target(channel in redis).
+    Increments logical timestamp by one
+    Args:
+        target (string): Target (channel in redis) that this message is directed to
+        data (dict): Data that is going to be sent with the messsage (normally has a 'type' field to categorize it)
+    """
     global r
     increment_timestamp()
     r.publish(target, json.dumps({
@@ -190,6 +239,11 @@ def send_message(target, data):
 
 
 def operate_over_resource(split_input):
+    """ Helper function that deals with the 4 operations over a shared resource
+
+    Args:
+        split_input ([string]): The user input split by spaces
+    """
     global r
     operation = split_input[0]
     resource_name = split_input[1]
@@ -200,6 +254,7 @@ def operate_over_resource(split_input):
     if operation == 'read':
         print('Current value for resource {} is {}'.format(
             resource_name, r.get(resource_name)))
+
     elif operation == 'write':
         if not resource_locks[resource_name]:
             print("You do not have the permission to write the {} resource, type LOCK {} to get lock".format(
@@ -209,6 +264,7 @@ def operate_over_resource(split_input):
             value = split_input[2]
             r.set(resource_name, value)
             print("The {} resource is now {}!".format(resource_name, value))
+
     elif operation == 'free':
         resource_locks[resource_name] = False
         resource_lock_request_timestamps[resource_name] = None
@@ -219,7 +275,8 @@ def operate_over_resource(split_input):
 
     elif operation == 'lock':
         if resource_lock_request_timestamps[resource_name] != None:
-            print('ERROR: Already requested a lock for this resource, still waiting for approval')
+            print(
+                'ERROR: Already requested a lock for this resource, still waiting for approval')
             return
         resource_lock_request_timestamps[resource_name] = timestamp
         send_message('all', {
