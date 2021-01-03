@@ -7,8 +7,6 @@ import threading
 redis_host = '127.0.0.1'
 redis_port = 6379
 
-# The logical timestamp of this node
-timestamp = 0
 # The name used to send messages to this node
 node_name = None
 leader_name = None
@@ -20,20 +18,7 @@ node_name = input_name
 
 election_request_denials = 0
 
-
-def increment_timestamp(event_timestamp=0):
-    """ Updates the timestamp to the event timestamp if it is bigger and
-    increments the timestamp by one
-
-    Args:
-        event_timestamp (int, optional): The event_timestamp. Defaults to 0.
-    """
-    global timestamp
-    timestamp = max([timestamp, event_timestamp]) + 1
-    print("Timestamp is now:", timestamp)
-
 def run_middleware(message):
-    global timestamp
     global node_name
     data = message["data"]
     parsed_data = {}
@@ -47,8 +32,6 @@ def run_middleware(message):
         raise ValueError('Ignore Message')
     else:
         print("Received message from ", sender)
-        increment_timestamp(parsed_data["timestamp"])
-
     return parsed_data["data"]
 
 
@@ -85,12 +68,10 @@ def receive_broadcast_message(message):
 def send_message(target, data):
     global r
     r.publish(target, json.dumps({
-        "timestamp": timestamp,
         "sender": node_name,
         "data": data,
     }))
     print("Sent message to", target)
-    increment_timestamp()
 
 def send_election_denial_message(target):
     send_message(target, {
@@ -136,13 +117,10 @@ p.subscribe(**{"all": receive_broadcast_message,
 thread = p.run_in_thread(sleep_time=0.001)
 
 print("""
-Event loop started. Type the LEADER to see the current leader or ELECTION to start a new election.
-Type 'timestamp' for the current logical timestamp.""")
+Event loop started. Type the LEADER to see the current leader or ELECTION to start a new election.""")
 while True:
     input_command = input().lower()
-    if input_command == 'timestamp':
-        print("Current timestamp is:", timestamp)
-    elif input_command == 'election':
+    if input_command == 'election':
         start_election()
     elif input_command == 'leader':
         print_leader()
