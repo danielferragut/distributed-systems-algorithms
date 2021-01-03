@@ -121,7 +121,7 @@ def handle_lock_request(data):
         ))
         if request_timestamp <= sender_timestamp:
             resource_waiting_nodes[resource].add(sender)
-            print(""" My timestamp ({timestamp}) is smaller than theirs ({sender_timestamp}), so I got priority!
+            print("""My timestamp ({timestamp}) is smaller than theirs ({sender_timestamp}), so I got priority!
             Put {sender} on the waiting list for resource {resource}. Current queue for resource {resource} is: {queue}""".format_map(
                 {
                     "sender": sender,
@@ -142,7 +142,6 @@ def handle_lock_request(data):
                 }
             ))
             send_ok_message(sender, resource)
-
 
 
 def handle_lock_response(data):

@@ -5,36 +5,21 @@ import json
 redis_host = '127.0.0.1'
 redis_port = 6379
 
-available_nodes = [
-    {
-        "name": "node1",
-    },
-    {
-        "name": "node2",
-    },
-    {
-        "name": "node3",
-    }
-]
+available_nodes = set(['node1', 'node2', 'node3'])
 
 # The logical timestamp of this node
 timestamp = 0
 # The name used to send messages to this node
 node_name = None
 
-name_set = set(map(lambda x: x["name"], available_nodes))
 print("Choose from these node options:")
-for name in name_set:
+for name in available_nodes:
     print("\t-{}".format(name))
 
 input_name = ""
-while input_name not in name_set:
+while input_name not in available_nodes:
     input_name = input("Type a valid name for this node: ")
-
-for node in available_nodes:
-    if node["name"] == input_name:
-        node_name = node["name"]
-        break
+node_name = input_name
 
 
 def increment_timestamp(event_timestamp=0):
@@ -84,12 +69,12 @@ def receive_broadcast_message(message):
 
 def send_message(target, data):
     global r
-    r.publish(target_node, json.dumps({
+    r.publish(target, json.dumps({
         "timestamp": timestamp,
         "sender": node_name,
         "data": data,
     }))
-    print("Sent message to", target_node)
+    print("Sent message to", target)
     increment_timestamp()
 
 
@@ -104,11 +89,11 @@ Event loop started. Type the name of a node to send a event.
 If you type the name of this node({}), then a independent event for this node will happen.
 Type 'timestamp' for the current logical timestamp.
 List of nodes:""".format(node_name))
-for name in name_set:
+for name in available_nodes:
     print("\t-{}".format(name))
 while True:
-    target_node = input()
-    if target_node in name_set:
-        send_message(target_node, {})
-    elif target_node == 'timestamp':
+    input_command = input()
+    if input_command in available_nodes:
+        send_message(input_command, {})
+    elif input_command == 'timestamp':
         print("Current timestamp is:", timestamp)
