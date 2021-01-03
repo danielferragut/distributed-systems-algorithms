@@ -83,7 +83,7 @@ def receive_direct_message(message):
 
 
 def receive_broadcast_message(message):
-    """ Handles direct messsages for this node, i.e messages in the "all"
+    """ Handles messages that were broadcastes to all nodes, i.e messages in the "all"
     channel in redis
 
     Args:
