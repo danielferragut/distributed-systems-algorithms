@@ -5,7 +5,6 @@ import time
 
 _REDIS_HOST = '127.0.0.1'
 _REDIS_PORT = 6379
-_LOCK_TIMEOUT = 5
 
 
 class Resource():
@@ -66,6 +65,11 @@ class Node:
         return self._timestamp
 
     def _get_other_nodes(self):
+        """ Returns a set with all the node names in the cluster that aren't this one
+
+        Returns:
+            set(string): The set with the names of other nodes
+        """
         nodes = self._r.lrange('nodes', 0, -1)
         if not nodes:
             nodes = []
@@ -370,7 +374,6 @@ def main():
                 elif input_command == 'list':
                     _print_resources()
                 elif input_command == 'quit':
-                    # TODO: free locks
                     break
                 elif len(split_input) > 1:
                     node.operate_over_resource(split_input)
