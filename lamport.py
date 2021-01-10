@@ -28,7 +28,7 @@ class Node:
     @property
     def timestamp(self):
         return self._timestamp
-        
+
     def _increment_timestamp(self, event_timestamp=0):
         """ Updates the timestamp to the event timestamp if it is bigger and
         increments the timestamp by one
@@ -117,6 +117,11 @@ def _get_available_nodes(r):
             nodes = []
         return [node.decode('utf8') for node in nodes]
 
+def _print_available_nodes(r):
+    print("List of nodes:")
+    for name in _get_available_nodes(r):
+        print("\t-{}".format(name))
+
 
 def main():
     r = redis.Redis(host=_REDIS_HOST, port=_REDIS_PORT)
@@ -129,26 +134,30 @@ def main():
         "all": node.receive_broadcast_message,
         node.name: node.receive_direct_message
     })
-    p.run_in_thread(sleep_time=0.001)
+    thread = p.run_in_thread(sleep_time=0.001)
 
     try:
         print("""
         Event loop started. Type the name of a node to send a event.
         If you type the name of this node({}), then a independent event for this node will happen.
         Type 'timestamp' for the current logical timestamp.
-        List of nodes:""".format(node.name))
-        for name in _get_available_nodes(r):
-            print("\t-{}".format(name))
+        Type 'list' for a list of the available nodes in the cluster.
+        Type 'quit' to stop this process.""".format(node.name))
+        _print_available_nodes(r)
         while True:
             input_command = input(f'nodes{_get_available_nodes(r)}: ')
             if input_command in _get_available_nodes(r):
                 node.send_message(input_command, {})
             elif input_command == 'timestamp':
                 print("Current timestamp is:", node.timestamp)
+            elif input_command == 'list':
+                _print_available_nodes(r)
+            elif input_command == 'quit':
+                break
+
     finally:
+        thread.stop()
         del node
-        p.unsubscribe()
-        p.close()
 
 
 if __name__ == '__main__':
