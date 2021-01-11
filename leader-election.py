@@ -9,19 +9,21 @@ _REDIS_HOST = '127.0.0.1'
 _REDIS_PORT = 6379
 _TIMEOUT_PERIOD = 0.5
 
-
 class Node:
-    def __init__(self, redis_cli, name):
+    def __init__(self, redis_cli, name, priority):
         self._r = redis_cli
         self._node_name = name
-        # The logical timestamp of this node
-        self._r.lpush('nodes', self._node_name)
         self.election_request_denials = 0
+        self.priority = priority
         self.leader_name = None
         self.leader_priority = None
         self.other_nodes = set()
 
     def destroy(self, thread):
+        self._send_message('all', {
+            "type": "node disconnect",
+            "sender": self.name
+        })
         thread.stop()
 
     @property
@@ -79,7 +81,7 @@ class Node:
             self.start_election()
         else:
             print("Leader {} responded! Entered cluster successfully".format(self.leader_name))
-            if os.getpid() > self.leader_priority:
+            if self.priority > self.leader_priority:
                 print("The leader priority, however, is smaller than mine! Starting an election!")
                 self.start_election()
 
@@ -119,13 +121,12 @@ class Node:
         if data['type'] == 'election':
             print("{} sent an election request!".format(
                 data['leader_candidate']))
-            if data['priority'] >= os.getpid():
+            if data['priority'] >= self.priority:
                 print("Their priority of {} is bigger than mine of {}, so I accept the new leader!".format(
-                    data['priority'], os.getpid()))
-                self.leader_name = data['leader_candidate']
+                    data['priority'], self.priority))
             else:
                 print("Their priority of {} is smaller than mine of {}, so I refuse this candidate!".format(
-                    data['priority'], os.getpid()))
+                    data['priority'], self.priority))
                 self._send_election_denial_message(data['leader_candidate'])
                 if self.leader_name != self.name:
                     self.start_election()
@@ -138,9 +139,13 @@ class Node:
                     'type': 'leader welcome',
                     'sender': self.name,
                     'other_nodes': list(self.other_nodes),
-                    'priority': os.getpid()
+                    'priority': self.priority
                 })
             self.other_nodes.add(new_node)
+        elif data['type'] == 'new leader':
+            self.leader_name = data['sender']
+        elif data['type'] == 'node disconnect':
+            self.other_nodes.remove(data['sender'])
 
     def _send_message(self, target, data):
         """ Wrapper that publishes a message on a target(channel in redis).
@@ -163,7 +168,7 @@ class Node:
         """
         self._send_message(target, {
             "type": "election denial",
-            "priority": os.getpid()
+            "priority": self.priority
         })
 
     def start_election(self):
@@ -179,7 +184,7 @@ class Node:
         self._send_message("all", {
             "type": "election",
             "leader_candidate": self.name,
-            "priority": os.getpid(),
+            "priority": self.priority,
         })
         thread = threading.Timer(_TIMEOUT_PERIOD, self._check_election_responses)
         thread.start()
@@ -194,6 +199,10 @@ class Node:
             print("Election ended and I am the leader!")
             self.leader_name = self.name
             self.election_request_denials = 0
+            self._send_message('all', {
+                "type": "new leader",
+                "sender": self.name
+            })
         else:
             print("Got at least one denial, I lost the election :(")
 
@@ -207,7 +216,7 @@ def main():
     r = redis.Redis(host=_REDIS_HOST, port=_REDIS_PORT)
 
     input_name = input("Type a name for this node: ")
-    node = Node(r, input_name)
+    node = Node(r, input_name, int(sys.argv[1]))
 
     p = r.pubsub()
     p.subscribe(**{
